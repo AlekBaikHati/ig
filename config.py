@@ -17,7 +17,14 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "8000"))  # Default port 8000 if not specified
 HOST = os.getenv("HOST", "0.0.0.0")   # Default host 0.0.0.0 if not specified
 
-WEBHOOK_PATH = os.getenv("WEBHOOK_PATH")
+# Webhook / polling configuration
+# USE_WEBHOOK = "true" (default) -> pakai webhook
+# USE_WEBHOOK = "false"          -> pakai long polling (tanpa webhook)
+USE_WEBHOOK = os.getenv("USE_WEBHOOK", "true").lower() == "true"
+
+# Webhook configuration (dipakai hanya jika USE_WEBHOOK = True)
+# Default path jika tidak diset di environment, supaya tidak None di Koyeb
+WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # MongoDB configuration

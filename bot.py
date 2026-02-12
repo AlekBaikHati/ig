@@ -10,7 +10,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from config import BOT_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT, HOST, TEMP_DIRECTORY
+from config import BOT_TOKEN, WEBHOOK_PATH, WEBHOOK_URL, PORT, HOST, TEMP_DIRECTORY, USE_WEBHOOK
 
 from handlers.handlers import register_handlers
 from handlers.admin import register_admin_handlers
@@ -50,17 +50,19 @@ class VidZillaBot:
         self.app = web.Application()
         self.app["bot"] = self.bot
 
-        # Setup webhook handler
-        webhook_handler = SimpleRequestHandler(
-            dispatcher=self.dp,
-            bot=self.bot,
-        )
-        webhook_handler.register(self.app, path=WEBHOOK_PATH)
-        setup_application(self.app, self.dp, bot=self.bot)
+        # Setup webhook handler (hanya jika USE_WEBHOOK = True)
+        if USE_WEBHOOK:
+            webhook_handler = SimpleRequestHandler(
+                dispatcher=self.dp,
+                bot=self.bot,
+            )
+            webhook_handler.register(self.app, path=WEBHOOK_PATH)
+            setup_application(self.app, self.dp, bot=self.bot)
 
         # Add routes
         self.app.router.add_get("/", self._handle_root)
-        self.app.router.add_get(WEBHOOK_PATH, self._handle_webhook_status)
+        if USE_WEBHOOK:
+            self.app.router.add_get(WEBHOOK_PATH, self._handle_webhook_status)
 
         # Setup lifecycle handlers
         self.app.on_startup.append(self._on_startup)
@@ -73,10 +75,12 @@ class VidZillaBot:
         return web.Response(text="Webhook is active and working")
 
     async def _on_startup(self, app: web.Application) -> None:
-        webhook_url = WEBHOOK_URL + WEBHOOK_PATH
-        logger.info(f"Setting webhook to {webhook_url}")
-        await self.bot.set_webhook(webhook_url)
-        logger.info("Webhook set successfully")
+        # Jika mode webhook, set webhook ke URL yang diberikan
+        if USE_WEBHOOK and WEBHOOK_URL:
+            webhook_url = WEBHOOK_URL + WEBHOOK_PATH
+            logger.info(f"Setting webhook to {webhook_url}")
+            await self.bot.set_webhook(webhook_url)
+            logger.info("Webhook set successfully")
         
         # Start cleanup task
         self.cleanup_task = asyncio.create_task(self._cleanup_old_files())
@@ -134,8 +138,13 @@ class VidZillaBot:
 
             logger.info("Vidzilla Bot - FREE Version started successfully!")
 
-            # Run forever
-            await asyncio.Event().wait()
+            if USE_WEBHOOK:
+                # Mode webhook: cukup jalankan server dan tunggu selamanya
+                await asyncio.Event().wait()
+            else:
+                # Mode long polling: jalankan polling di background
+                logger.info("Starting long polling mode (no webhook)")
+                await self.dp.start_polling(self.bot)
 
         except KeyboardInterrupt:
             logger.info("Received shutdown signal")
